@@ -66,8 +66,8 @@ The data contained in this Kaggle dataset requires some preprocessing to clean a
 The crime incidents project aims to leverage SQL to clean and standardize a messy user-input dataset and provide general insights on crime volume and reveal potential crime trends. This project is valuable for policymakers, residents, and law enforcement interested in crime data of the relevant cities/disticts.
 
 ## Author
-- <b>[LinkedIn](https://www.linkedin.com/in/rboeh/)</b>
 - <ins><b>©2023 Ryker Boeh. All rights reserved</b></ins>
+- <b>[LinkedIn](https://www.linkedin.com/in/rboeh/)</b>
 
 ## Contact me
 
