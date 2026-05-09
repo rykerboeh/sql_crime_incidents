@@ -1,0 +1,751 @@
+SELECT *
+FROM crime_incidents
+ORDER BY crime_incidents.incident_id;
+
+-- =========================
+-- Convert Data Types
+-- =========================
+
+-- Convert suspect_age data type to integer
+
+ALTER TABLE crime_incidents 
+ALTER COLUMN suspect_age 
+TYPE INTEGER 
+USING suspect_age::INTEGER;
+
+-- Convert victim_age data type to integer
+
+ALTER TABLE crime_incidents 
+ALTER COLUMN victim_age 
+TYPE INTEGER 
+USING victim_age::INTEGER;
+
+-- Convert num_arrests data type to integer
+
+ALTER TABLE crime_incidents 
+ALTER COLUMN num_arrests 
+TYPE INTEGER 
+USING num_arrests::INTEGER;
+
+-- ============================
+-- Remove Duplicate Incidents
+-- ============================
+
+-- Create a CTE that numbers incidents that are duplicate on distinct id columns
+WITH rownum_cte AS (
+SELECT ctid,
+	ROW_NUMBER() OVER (
+	PARTITION BY incident_id,
+				 officer_id,
+				 suspect_id,
+				 victim_id
+				 ORDER BY
+				 	incident_id
+	) AS row_num
+FROM crime_incidents
+)
+
+-- Remove duplicates from dataset whilst leaving the original in tact
+DELETE FROM crime_incidents AS c
+USING rownum_cte AS rn
+WHERE rn.row_num > 1 
+  AND rn.ctid = c.ctid;
+
+-- =========================
+-- Clean Date
+-- =========================
+
+-- Remove extra spaces from datetime input
+WITH cleaned AS (
+    SELECT
+        incident_datetime,
+        TRIM(incident_datetime) AS idt
+    FROM crime_incidents
+),
+
+-- Standardize datetime format and set default time to midnight if blank
+parsed AS (
+    SELECT
+                CASE
+            -- Format: MM/DD/YY HH:MI
+            WHEN idt ~ '^\d{1,2}/\d{1,2}/\d{2} \d{1,2}:\d{2}$'
+                THEN TO_TIMESTAMP(idt, 'MM/DD/YY HH24:MI')
+
+            -- Format: MM/DD/YY (no time -> default midnight)
+            WHEN idt ~ '^\d{1,2}/\d{1,2}/\d{2}$'
+                THEN TO_TIMESTAMP(idt || ' 00:00', 'MM/DD/YY HH24:MI')
+
+            -- Format: DD-MM-YYYY (no time -> default midnight)
+            WHEN idt ~ '^\d{2}-\d{2}-\d{4}$'
+                THEN TO_TIMESTAMP(idt || ' 00:00', 'DD-MM-YYYY HH24:MI')
+
+            ELSE NULL
+        END AS clean_timestamp
+
+    FROM cleaned
+)
+
+SELECT *
+FROM parsed;
+
+-- =========================
+-- Property Loss
+-- =========================
+/*
+The property loss column contains values with multiple decimal places. Before the value can be cast to a numeric data type,
+the values must be standardized by maintaining the initial decimal point, but removing subsequent points
+*/
+WITH normal_property_loss AS (
+SELECT
+  ROUND(
+    REPLACE(
+      REGEXP_REPLACE(
+        REGEXP_REPLACE(property_loss_usd, '\.', '#'), -- Hide first decimal point by temporarily replacing it with "#"
+        '\.', '', 'g'                           	  -- Strip remaining decimal point
+      ),
+      '#', '.'                                  	  -- Restore first dot
+    )::numeric,                                 	  -- Cast value to numeric data type
+    2                                           	  -- Round final value to 2 decimal places
+  ) AS n_property_loss_usd
+FROM crime_incidents
+)
+-- Standardize inputs by removing negative values (property loss cannot be negative )
+SELECT CASE
+		WHEN n_property_loss_usd < 0 THEN ROUND((n_property_loss_usd / -1), 2)
+		ELSE n_property_loss_usd
+	END AS std_property_loss_usd
+FROM normal_property_loss;
+
+-- =========================
+-- Ages
+-- =========================
+
+SELECT
+	CASE
+		WHEN suspect_age < 0 THEN (suspect_age / -1) -- Corrects negative age inputs
+		WHEN suspect_age > 110 THEN CAST(LEFT(suspect_age::text, LENGTH(suspect_age::text) - 1) AS INTEGER) -- Assumes that age values over 110 received an extra digit as a typo
+		ELSE suspect_age
+	END AS std_suspect_age
+FROM crime_incidents;
+
+--
+
+SELECT
+	CASE
+		WHEN victim_age < 0 THEN (victim_age / -1) -- Corrects negative age inputs
+		WHEN victim_age > 110 THEN CAST(LEFT(victim_age::text, LENGTH(victim_age::text) - 1) AS INTEGER) -- Assumes that age values over 110 received an extra digit as a typo
+		ELSE victim_age
+	END AS std_victim_age
+FROM crime_incidents;
+
+-- =========================
+-- Number of Arrests
+-- =========================
+
+SELECT
+	CASE
+		WHEN num_arrests < 0 THEN (num_arrests / -1) -- Corrects negative inputs
+		WHEN num_arrests IS NULL THEN 0 -- Sets default NULL to 0 (assumes no arrests were made)
+		ELSE num_arrests
+	END AS std_num_arrests
+FROM crime_incidents;
+
+-- =========================
+-- Victim Phone
+-- =========================
+
+-- Standardizes phone numbers by removing non-numeric characters and setting "N/A" inputs to NULL
+SELECT 
+    REGEXP_REPLACE(NULLIF(victim_phone, 'N/A'), '[^0-9]', '', 'g') AS std_victim_phone
+FROM crime_incidents;
+
+-- =========================
+-- Crime Type
+-- =========================
+
+SELECT 
+	DISTINCT COALESCE(m.std_value, c.crime_type) AS std_crime -- Replaces messy inputs with standardized values from mapping table
+FROM crime_incidents c
+LEFT JOIN crime_type_map m
+	ON REPLACE(REPLACE(REPLACE(TRIM(LOWER(c.crime_type)), ' ', '<>'), '><', ''), '<>', ' ') = m.raw_value;
+	
+-- Create mapping table for crime_type to correct typos and standardize inputs
+
+CREATE TABLE crime_type_map (
+	raw_value TEXT,
+	std_value TEXT
+);
+
+INSERT INTO crime_type_map (raw_value, std_value)
+	VALUES
+	('armed robbery', 'armed robbery'),
+	('sexual assualt', 'sexual assault'),
+	('drugs', 'drug offense'),
+	('theft/larceny', 'theft'),
+	('sa', 'sexual assault'),
+	('dwi', 'dui'),
+	('kidnapping', 'kidnapping'),
+	('drug offense', 'drug offense'),
+	('cyber crime', 'cyber'),
+	('breaking & entering', 'breaking and entering'),
+	('vandlism', 'vandalism'),
+	('dv', 'domestic violence'),
+	('homocide', 'homicide'),
+	('fraudulent activity', 'fraud'),
+	('assault', 'assault'),
+	('murder', 'homicide'),
+	('homicide', 'homicide'),
+	('duii', 'dui'),
+	('manslaughter', 'manslaughter'),
+	('kidnaping', 'kidnapping'),
+	('hacking', 'cyber'),
+	('tresspassing', 'trespassing'),
+	('drug offence', 'drug offense'),
+	('assault & battery', 'assault and battery'),
+	('trespassing', 'trespassing'),
+	('burglary', 'burglary'),
+	('larceny', 'theft'),
+	('burglry', 'burglary'),
+	('drunk driving', 'dui'),
+	('fire setting', 'arson'),
+	('sex assault', 'sexual assault'),
+	('stealing', 'theft'),
+	('arsen', 'arson'),
+	('graffiti', 'vandalism'),
+	('arson', 'arson'),
+	('d.u.i.', 'dui'),
+	('fraud', 'fraud'),
+	('theft', 'theft'),
+	('battery', 'battery'),
+	('dui', 'dui'),
+	('scam', 'fraud'),
+	('abduction', 'kidnapping'),
+	('roberry', 'robbery'),
+	('property damage', 'property damage'),
+	('asslt', 'assault'),
+	('domestc violence', 'domestic violence'),
+	('robbery', 'robbery'),
+	('dom. violence', 'domestic violence'),
+	('cybercrime', 'cyber'),
+	('deception', 'fraud'),
+	('robbry', 'robbery'),
+	('sexual assault', 'sexual assault'),
+	('trespass', 'trespassing'),
+	('vandalism', 'vandalism'),
+	('online fraud', 'fraud'),
+	('narcotics', 'drug offense'),
+	('domestic violence', 'domestic violence'),
+	('b&e', 'breaking and entering');
+
+-- =========================
+-- District
+-- =========================
+
+SELECT 
+	COALESCE(m.std_value, c.district) AS std_district -- Replaces messy inputs with standardized values from mapping table
+FROM crime_incidents c
+LEFT JOIN district_map m
+	ON REPLACE(REPLACE(REPLACE(TRIM(LOWER(c.district)), ' ', '<>'), '><', ''), '<>', ' ') = m.raw_value;
+
+-- Create mapping table for district to correct typos and standardize inputs
+
+CREATE TABLE district_map (
+	raw_value TEXT,
+	std_value TEXT
+);
+
+INSERT INTO district_map (raw_value, std_value)
+VALUES
+	('cen', 'central'),
+	('west', 'west'),
+	('northwest', 'northwest'),
+	('midtown', 'central'),
+	('southeast', 'southeast'),
+	('nor', 'north'),
+	('mid', 'central'),
+	('wes', 'west'),
+	('eas', 'east'),
+	('northeast', 'northeast'),
+	('southwest', 'southwest'),
+	('central', 'central'),
+	('sou', 'south'),
+	('south', 'south'),
+	('north', 'north'),
+	('east', 'east');
+
+-- =========================
+-- Names
+-- =========================
+
+SELECT 
+	TRIM(INITCAP(officer_first_name)) AS std_officer_first_name,
+	TRIM(INITCAP(officer_last_name)) AS std_officer_last_name,
+	TRIM(INITCAP(suspect_first_name)) AS std_suspect_first_name,
+	TRIM(INITCAP(suspect_last_name)) AS std_suspect_last_name,
+	TRIM(INITCAP(victim_first_name)) AS std_victim_first_name,
+	TRIM(INITCAP(victim_last_name)) AS std_victim_last_name
+FROM crime_incidents;
+
+-- =========================
+-- Suspect Gender
+-- =========================
+
+SELECT 
+	 COALESCE(m.std_value, 'n/a') AS std_sus_gender -- Replaces messy inputs with standardized values from mapping table
+FROM crime_incidents c
+LEFT JOIN gender_map m
+	ON TRIM(LOWER(c.suspect_gender)) = m.raw_value;
+
+-- =========================
+-- Victim Gender
+-- =========================
+
+SELECT
+	COALESCE(m.std_value, 'n/a') AS std_vic_gender -- Replaces messy inputs with standardized values from mapping table
+FROM crime_incidents c
+LEFT JOIN gender_map m
+	ON TRIM(LOWER(c.victim_gender)) = m.raw_value;
+
+-- Create mapping table for suspect_gender and victim_gender to correct typos and standardize inputs
+
+CREATE TABLE gender_map (
+	raw_value TEXT,
+	std_value TEXT
+);
+
+INSERT INTO gender_map (raw_value, std_value)
+VALUES
+	('female', 'female'),
+	('m', 'male'),
+	('n/a', 'n/a'),
+	('unknown', 'n/a'),
+	('other', 'other'),
+	('male', 'male'),
+	('f', 'female');
+	
+-- =========================
+-- Race
+-- =========================
+
+SELECT
+CASE -- Sets NULL and "unknown" values to a standardized "n/a" value
+	WHEN TRIM(LOWER(suspect_race)) IS NULL THEN 'n/a'
+	WHEN TRIM(LOWER(suspect_race)) = 'unknown' THEN 'n/a'
+	ELSE TRIM(LOWER(suspect_race))
+END AS std_suspect_race
+FROM crime_incidents
+
+-- =========================
+-- Weapon
+-- =========================
+
+SELECT
+	COALESCE(m.std_value, 'none') AS std_weapon_used -- Replaces messy inputs with standardized values from mapping table and sets NULL to 'none'
+FROM crime_incidents c
+LEFT JOIN weapon_map m
+	ON TRIM(LOWER(c.weapon_used)) = m.raw_value;
+
+-- Create mapping table for weapon_used to correct typos and standardize inputs
+
+CREATE TABLE weapon_map (
+	raw_value TEXT,
+	std_value TEXT
+);
+
+INSERT INTO weapon_map (raw_value, std_value)
+VALUES
+	('gun', 'firearm'),
+	('none', 'none'),
+	('unarmed', 'none'),
+	('knife', 'knife'),
+	('rifle', 'firearm'),
+	('firearm', 'firearm'),
+	('n/a', 'none'),
+	('bat', 'blunt object'),
+	('hands/feet', 'none'),
+	('pistol', 'firearm'),
+	('blunt object', 'blunt object'),
+	('hands', 'none');
+
+-- =========================
+-- Severity
+-- =========================
+
+SELECT
+	COALESCE(m.std_value, 'low') AS std_severity -- Replaces messy inputs with standardized values from mapping table
+FROM crime_incidents c
+LEFT JOIN severity_map m
+	ON TRIM(LOWER(c.severity)) = m.raw_value;
+
+-- Create mapping table for severity to correct typos and standardize inputs
+CREATE TABLE severity_map (
+	raw_value TEXT,
+	std_value TEXT
+);
+
+INSERT INTO severity_map (raw_value, std_value)
+	VALUES
+	('crit', 'high'),
+	('high', 'high'),
+	('med', 'medium'),
+	('low', 'low'),
+	('critical', 'high'),
+	('3', 'medium'),
+	('2', 'low'),
+	('medium', 'medium'),
+	('1', 'low'),
+	('4', 'high');
+	
+-- =========================
+-- Resolution + Case Status
+-- =========================
+
+WITH cleaned_res_cstat AS (
+SELECT
+	COALESCE(csm.std_value, c.case_status, 'n/a') AS std_case_status, -- Replaces messy inputs with standardized values from mapping table
+	COALESCE(rm.std_value, c.resolution) AS std_resolution -- Replaces messy inputs with standardized values from mapping table
+FROM crime_incidents c
+LEFT JOIN resolution_map rm
+	ON TRIM(LOWER(c.resolution)) = rm.raw_value
+LEFT JOIN case_status_map csm
+	ON TRIM(LOWER(c.case_status)) = csm.raw_value
+	)
+-- When a case resolution is "dismissed", this query sets the case status to "closed"
+SELECT
+	std_resolution,
+	CASE
+		WHEN std_resolution = 'dismissed' THEN 'closed'
+            ELSE std_case_status
+        END AS final_case_status
+FROM cleaned_res_cstat;
+
+-- Create mapping table for resolution to correct typos and standardize inputs
+
+CREATE TABLE resolution_map (
+	raw_value TEXT,
+	std_value TEXT
+);
+
+INSERT INTO resolution_map (raw_value, std_value)
+	VALUES
+	('warning issued', 'warning'),
+	('no arrest', 'n/a'),
+	('warning', 'warning'),
+	('arrest made', 'arrest'),
+	('case dismissed', 'dismissed'),
+	('dismissed', 'dismissed'),
+	('n/a', 'n/a'),
+	('arres made', 'arrest');
+
+-- Create mapping table for case_status to standardize values
+CREATE TABLE case_status_map (
+	raw_value TEXT,
+	std_value TEXT
+);
+
+INSERT INTO case_status_map (raw_value, std_value)
+	VALUES
+	('closed', 'closed'),
+	('resolved', 'closed'),
+	('n/a', 'n/a'),
+	('pendng', 'pending'),
+	('under investigation', 'open'),
+	('open', 'open'),
+	('pending', 'pending'),
+	('investgation', 'open');
+	
+-- =========================
+-- Reported Online
+-- =========================
+
+SELECT
+	COALESCE(m.std_value, FALSE) AS std_reported_online -- Replaces messy inputs with standardized values from mapping table and set default value to FALSE when NULL
+FROM crime_incidents c
+LEFT JOIN reported_online_map m
+	ON TRIM(LOWER(c.reported_online)) = m.raw_value;
+	
+-- Create mapping table for reported_online to standardize inputs to boolean values
+
+CREATE TABLE reported_online_map (
+	raw_value TEXT,
+	std_value BOOL
+);
+
+INSERT INTO reported_online_map (raw_value, std_value)
+	VALUES
+	('true', TRUE),
+	('false', FALSE),
+	('yes', TRUE),
+	('no', FALSE),
+	('0', FALSE),
+	('1', TRUE);
+
+-- ======================================
+-- Creating Clean Crime Incidents View
+-- ======================================
+
+-- This compounding CTE query combines the logic from the above cleaning queries to construct a data view of the cleaned data
+
+CREATE VIEW clean_crime_incidents AS
+WITH base AS (
+    SELECT *
+    FROM crime_incidents
+),
+
+-- Clean Date
+clean_date AS (
+    SELECT *,
+        CASE
+            WHEN TRIM(incident_datetime) ~ '^\d{1,2}/\d{1,2}/\d{2} \d{1,2}:\d{2}$'
+                THEN TO_TIMESTAMP(TRIM(incident_datetime), 'MM/DD/YY HH24:MI')
+
+            WHEN TRIM(incident_datetime) ~ '^\d{1,2}/\d{1,2}/\d{2}$'
+                THEN TO_TIMESTAMP(TRIM(incident_datetime) || ' 00:00', 'MM/DD/YY HH24:MI')
+
+            WHEN TRIM(incident_datetime) ~ '^\d{2}-\d{2}-\d{4}$'
+                THEN TO_TIMESTAMP(TRIM(incident_datetime) || ' 00:00', 'DD-MM-YYYY HH24:MI')
+
+            ELSE NULL
+        END AS std_incident_timestamp
+    FROM base
+),
+
+-- Property Loss
+clean_prop_loss AS (
+    SELECT *,
+        CASE
+            WHEN property_loss_usd IS NULL THEN 0
+            ELSE ROUND(
+                ABS(
+                    REPLACE(
+                        REGEXP_REPLACE(
+                            REGEXP_REPLACE(property_loss_usd, '\.', '#'),
+                            '\.', '', 'g'
+                        ),
+                        '#', '.'
+                    )::numeric
+                ),
+                2
+            )
+        END AS std_property_loss_usd
+    FROM clean_date
+),
+
+-- Ages
+clean_ages AS (
+    SELECT *,
+        CASE
+            WHEN suspect_age < 0 THEN ABS(suspect_age)
+            WHEN suspect_age > 110 THEN LEFT(suspect_age::text, LENGTH(suspect_age::text) - 1)::INT
+            ELSE suspect_age
+        END AS std_suspect_age,
+
+        CASE
+            WHEN victim_age < 0 THEN ABS(victim_age)
+            WHEN victim_age > 110 THEN LEFT(victim_age::text, LENGTH(victim_age::text) - 1)::INT
+            ELSE victim_age
+        END AS std_victim_age
+    FROM clean_prop_loss
+),
+
+-- Arrests
+clean_arrests AS (
+    SELECT *,
+        CASE
+            WHEN num_arrests IS NULL THEN 0
+            WHEN num_arrests < 0 THEN ABS(num_arrests)
+            ELSE num_arrests
+        END AS std_num_arrests
+    FROM clean_ages
+),
+
+-- Phone
+clean_phone AS (
+    SELECT *,
+        REGEXP_REPLACE(NULLIF(victim_phone, 'N/A'), '[^0-9]', '', 'g') AS std_victim_phone
+    FROM clean_arrests
+),
+
+-- Crime Type
+clean_crime_type AS (
+    SELECT *,
+        COALESCE(m.std_value, c.crime_type) AS std_crime_type
+    FROM clean_phone c
+    LEFT JOIN crime_type_map m
+        ON REPLACE(REPLACE(REPLACE(TRIM(LOWER(c.crime_type)), ' ', '<>'), '><', ''), '<>', ' ') = m.raw_value
+),
+
+-- District
+clean_district AS (
+    SELECT *,
+        COALESCE(m.std_value, c.district) AS std_district
+    FROM clean_crime_type c
+    LEFT JOIN district_map m
+        ON TRIM(LOWER(c.district)) = m.raw_value
+),
+
+-- Gender
+clean_gender AS (
+    SELECT *,
+        COALESCE(ms.std_value, 'n/a') AS std_suspect_gender,
+        COALESCE(mv.std_value, 'n/a') AS std_victim_gender
+    FROM clean_district c
+    LEFT JOIN gender_map ms
+        ON TRIM(LOWER(c.suspect_gender)) = ms.raw_value
+    LEFT JOIN gender_map mv
+        ON TRIM(LOWER(c.victim_gender)) = mv.raw_value
+),
+
+-- Race
+clean_race AS (
+    SELECT *,
+        CASE
+            WHEN suspect_race IS NULL OR TRIM(LOWER(suspect_race)) = 'unknown'
+                THEN 'n/a'
+            ELSE TRIM(LOWER(suspect_race))
+        END AS std_suspect_race
+    FROM clean_gender
+),
+
+-- Weapon
+clean_weapon AS (
+    SELECT *,
+        COALESCE(m.std_value, 'none') AS std_weapon_used
+    FROM clean_race c
+    LEFT JOIN weapon_map m
+        ON TRIM(LOWER(c.weapon_used)) = m.raw_value
+),
+
+-- Severity
+clean_severity AS (
+    SELECT *,
+        COALESCE(m.std_value, 'low') AS std_severity
+    FROM clean_weapon c
+    LEFT JOIN severity_map m
+        ON TRIM(LOWER(c.severity)) = m.raw_value
+),
+
+-- Resolution + Case Status
+clean_case AS (
+    SELECT *,
+        COALESCE(csm.std_value, c.case_status, 'n/a') AS std_case_status,
+        COALESCE(rm.std_value, c.resolution) AS std_resolution
+    FROM clean_severity c
+    LEFT JOIN resolution_map rm
+        ON TRIM(LOWER(c.resolution)) = rm.raw_value
+    LEFT JOIN case_status_map csm
+        ON TRIM(LOWER(c.case_status)) = csm.raw_value
+),
+
+final_case AS (
+    SELECT *,
+        CASE
+            WHEN std_resolution = 'dismissed' THEN 'closed'
+            ELSE std_case_status
+        END AS final_case_status
+    FROM clean_case
+),
+
+-- Reported Online
+clean_reported_online AS (
+    SELECT *,
+        COALESCE(m.std_value, FALSE) AS std_reported_online
+    FROM final_case c
+    LEFT JOIN reported_online_map m
+        ON TRIM(LOWER(c.reported_online)) = m.raw_value
+),
+
+-- Names
+clean_names AS (
+	SELECT *,
+		TRIM(INITCAP(officer_first_name)) AS std_officer_first_name,
+		TRIM(INITCAP(officer_last_name)) AS std_officer_last_name,
+		TRIM(INITCAP(suspect_first_name)) AS std_suspect_first_name,
+		TRIM(INITCAP(suspect_last_name)) AS std_suspect_last_name,
+		TRIM(INITCAP(victim_first_name)) AS std_victim_first_name,
+		TRIM(INITCAP(victim_last_name)) AS std_victim_last_name
+FROM clean_reported_online
+)
+
+-- Final Output
+SELECT
+	incident_id,
+	std_crime_type,
+	std_district,
+	city,
+	state,
+	address,
+	latitude,
+	longitude,
+    std_incident_timestamp,
+	officer_id,
+	std_officer_first_name,
+	std_officer_last_name,
+	badge_number,
+	suspect_id,
+	std_suspect_first_name,
+	std_suspect_last_name,
+	std_suspect_age,
+	std_suspect_gender,
+	std_suspect_race,
+	victim_id,
+	std_victim_first_name,
+	std_victim_last_name,
+	std_victim_age,
+	std_victim_gender,
+	std_victim_phone,
+	std_weapon_used,
+	std_severity,
+	final_case_status,
+	std_resolution,
+	std_num_arrests,
+    std_property_loss_usd,
+    std_reported_online
+FROM clean_names;
+
+-- =================================
+-- Creating Crime Analysis View
+-- =================================
+
+-- Set clean columns to their original names and construct view of only cleaned data for increased analytical efficiency and accuracy
+CREATE VIEW crime_analysis AS 
+(
+SELECT
+	incident_id,
+	std_crime_type AS crime_type,
+	std_district AS district,
+	city,
+	state,
+	address,
+	latitude,
+	longitude,
+    std_incident_timestamp AS incident_timestamp,
+	officer_id,
+	std_officer_first_name AS officer_first_name,
+	std_officer_last_name AS officer_last_name,
+	badge_number,
+	suspect_id,
+	std_suspect_first_name AS suspect_first_name,
+	std_suspect_last_name AS suspect_last_name,
+	std_suspect_age AS suspect_age,
+	std_suspect_gender AS suspect_gender,
+	std_suspect_race AS suspect_race,
+	victim_id,
+	std_victim_first_name AS victim_first_name,
+	std_victim_last_name AS victim_last_name,
+	std_victim_age AS victim_age,
+	std_victim_gender AS victim_gender,
+	std_victim_phone AS victim_phone,
+	std_weapon_used AS weapon_used,
+	std_severity AS severity,
+	final_case_status AS case_status,
+	std_resolution AS resolution,
+	std_num_arrests AS num_arrests,
+    std_property_loss_usd AS property_loss_usd,
+    std_reported_online AS reported_online
+FROM clean_crime_incidents
+);
+
+--
+SELECT *
+FROM crime_analysis
