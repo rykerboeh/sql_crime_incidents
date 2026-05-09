@@ -35,7 +35,7 @@ To facilitate data management and analysis, a SQL database has been created to s
 ## Data Processing
 The data contained in this Kaggle dataset requires some preprocessing to clean and transform it into a suitable format for analysis. The raw data has inconsistent formatting, typos, and missing data. SQL queries were utilized to clean, filter, and transform the data as necessary. This ensures that the data used for analysis is accurate and reliable.
 
-<img width="1101" height="490" alt="crime_incident_clean" src="https://github.com/user-attachments/assets/704dfd0f-6438-438f-b8b3-c3c5fa7a2893" />
+<img width="1088" height="492" alt="crime_incident_clean" src="https://github.com/user-attachments/assets/f40d9350-570b-4298-95b8-2650d6765a95" />
 
 
 ## Project includes:
