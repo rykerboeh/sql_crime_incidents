@@ -24,15 +24,18 @@ This project aims to clean and explore crime incident data from a user-input sim
 --------
 
 ## Dataset
-The dataset used in this project contains historical sales data for Retail and Food Services in the U.S.A. The data has been collected from the U.S. government website, which ensures its authenticity and reliability. The dataset includes information such as NAICS code, category, sales figures, geographical regions, and time period (e.g., monthly or yearly).
+The dataset used in this project contains mock crime reports ranging from 2018-2024. It is meant to simulate a database of user-input instances containing data such as suspect information, victim information, officer information, crime type, weapon used, case status, resolution, etc. 
+
+<img width="1067" height="493" alt="crime_incident_dirty" src="https://github.com/user-attachments/assets/89629d38-f617-47c4-ae2c-4f191fa8b7ea" />
+
 
 ## Database
 To facilitate data management and analysis, a SQL database has been created to store the dataset. SQL provides a robust and efficient way to query and manipulate the data. The database schema has been designed to ensure proper organization and ease of use. The structure of the database enables seamless integration with various data visualization tools.
 
 ## Data Processing
-The data obtained from the U.S. government website might require some preprocessing to clean and transform it into a suitable format for analysis. SQL queries have been utilized to clean, filter, and transform the data as necessary. This ensures that the data used for the dashboard is accurate and reliable.
-![NAICS](https://github.com/tushar2704/Sales-for-Retail-and-Food-Services/assets/66141195/c897f5c5-e4ce-446f-8944-c0c0376fcee9)
+The data contained in this Kaggle dataset requires some preprocessing to clean and transform it into a suitable format for analysis. The raw data has inconsistent formatting, typos, and missing data. SQL queries were utilized to clean, filter, and transform the data as necessary. This ensures that the data used for analysis is accurate and reliable.
 
+<img width="1101" height="490" alt="crime_incident_clean" src="https://github.com/user-attachments/assets/704dfd0f-6438-438f-b8b3-c3c5fa7a2893" />
 
 
 ## Project includes:
