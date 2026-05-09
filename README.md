@@ -38,19 +38,19 @@ The data contained in this Kaggle dataset requires some preprocessing to clean a
 <img width="1088" height="492" alt="crime_incident_clean" src="https://github.com/user-attachments/assets/f40d9350-570b-4298-95b8-2650d6765a95" />
 
 
-## Project includes:
+## Analysis includes:
 
-**Overview:** A summary of key performance indicators, such as total sales, top-performing categories, and regional distribution of sales.
+**Most Common Crime Type:** Totals of the most frequently reported crime types.
 
-**Sales by NAICS Code:** Visual representations of sales figures for various NAICS codes, allowing users to identify the most significant contributors to overall sales.
+**Crime Trends Over Time:** Representation of how crime volume has fluctuated over the years, by crime type.
 
-**Sales by Category:** Graphs and charts illustrating sales for different categories within Retail and Food Services.
+**Arrest Rate By Crime Type:** Likelihood of an arrest by crime type.
 
-**Geographical Analysis:** Maps and charts showing sales distribution across different regions of the U.S.A.
+**District and City Hotspot Ranking:** Representations of crime volume by city and district.
 
-**Time Series Analysis:** Trends and seasonal patterns in sales data, helping users to identify patterns over time.
+**Time of Day Incident Analysis:** Exploration of when incidents may be most likely to occur.
 
-**Filtering and Interactivity:** Interactive elements allowing users to filter data based on specific criteria and perform ad-hoc analysis.
+**Rolling Crime Trends:** Visualization of 7-day and 30-day rolling crime totals and averages.
 
 ## Technologies Used
 **SQL:** For data extraction, transformation, and loading into the database.
@@ -66,9 +66,9 @@ The data contained in this Kaggle dataset requires some preprocessing to clean a
 The Sales for Retail and Food Services in U.S.A. project provides a comprehensive analysis of sales data within the Retail and Food Services sectors. The use of SQL and data from the U.S. government website ensures data accuracy and reliability. The interactive dashboard offers a user-friendly interface to explore the data visually and gain valuable insights. This project is valuable for businesses, policymakers, and researchers looking to understand and leverage sales trends in the U.S.A.
 
 ## Author
-- <ins><b>©2023 Ryker Boeh. All rights reserved</b></ins>
 - <b>[LinkedIn](https://www.linkedin.com/in/rboeh/)</b>
+- <ins><b>©2023 Ryker Boeh. All rights reserved</b></ins>
 
-## Contact me!
+## Contact me
 
-If you have any questions, suggestions, or just want to say hello, you can reach out to me at [Ryker Boeh](mailto:rykerbboeh@gmail.com). I would love to hear from you!
+If you have any questions, suggestions, or just want to say hello, you can reach out to me at [Ryker Boeh](mailto:rykerbboeh@gmail.com). I would love to hear from you.
