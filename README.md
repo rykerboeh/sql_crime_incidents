@@ -63,7 +63,7 @@ The data contained in this Kaggle dataset requires some preprocessing to clean a
 
 
 **Conclusion**
-The Sales for Retail and Food Services in U.S.A. project provides a comprehensive analysis of sales data within the Retail and Food Services sectors. The use of SQL and data from the U.S. government website ensures data accuracy and reliability. The interactive dashboard offers a user-friendly interface to explore the data visually and gain valuable insights. This project is valuable for businesses, policymakers, and researchers looking to understand and leverage sales trends in the U.S.A.
+The crime incidents project aims to leverage SQL to clean and standardize a messy user-input dataset and provide general insights on crime volume and reveal potential crime trends. This project is valuable for policymakers, residents, and law enforcement interested in crime data of the relevant cities/disticts.
 
 ## Author
 - <b>[LinkedIn](https://www.linkedin.com/in/rboeh/)</b>
